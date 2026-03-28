@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Upload,
   CheckCircle2,
   ScanLine,
   TrendingUp,
+  MapPin,
+  Navigation,
+  ExternalLink,
 } from "lucide-react";
 
 type AnalysisResult = {
@@ -11,6 +14,16 @@ type AnalysisResult = {
   confidence: number;
   risk_level: string;
   recommended_action: string;
+};
+
+type Hospital = {
+  id: string;
+  name: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  distance_km: number;
+  is_antivenom_candidate: boolean;
 };
 
 export function ImageAnalyzer() {
@@ -21,11 +34,99 @@ export function ImageAnalyzer() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [isFetchingHospitals, setIsFetchingHospitals] = useState(false);
+  const [hospitalError, setHospitalError] = useState("");
+  const [antiVenomHospitals, setAntiVenomHospitals] = useState<Hospital[]>([]);
+  const [generalHospitals, setGeneralHospitals] = useState<Hospital[]>([]);
 
   const resetAnalysisState = () => {
     setIsAnalyzed(false);
     setAnalysis(null);
     setError("");
+    setHospitalError("");
+    setAntiVenomHospitals([]);
+    setGeneralHospitals([]);
+  };
+
+  useEffect(() => {
+    if (!analysis || !userLocation) {
+      return;
+    }
+
+    const fetchNearbyHospitals = async () => {
+      setIsFetchingHospitals(true);
+      setHospitalError("");
+
+      const query = new URLSearchParams({
+        latitude: String(userLocation.latitude),
+        longitude: String(userLocation.longitude),
+        risk_level: analysis.risk_level,
+        limit: "5",
+      });
+
+      try {
+        const res = await fetch(
+          `http://127.0.0.1:8000/api/nearby-hospitals?${query.toString()}`
+        );
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.detail || "Failed to fetch nearby hospitals.");
+        }
+
+        setAntiVenomHospitals(data?.anti_venom_hospitals ?? []);
+        setGeneralHospitals(data?.general_hospitals ?? []);
+      } catch (err) {
+        setAntiVenomHospitals([]);
+        setGeneralHospitals([]);
+        setHospitalError(
+          err instanceof Error ? err.message : "Failed to load nearby hospitals."
+        );
+      } finally {
+        setIsFetchingHospitals(false);
+      }
+    };
+
+    fetchNearbyHospitals();
+  }, [analysis, userLocation]);
+
+  const requestUserLocation = () => {
+    if (!navigator.geolocation) {
+      setHospitalError("Geolocation is not supported in this browser.");
+      return;
+    }
+
+    setIsLocating(true);
+    setHospitalError("");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setIsLocating(false);
+      },
+      () => {
+        setHospitalError("Unable to fetch your location. Please allow location access.");
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    );
+  };
+
+  const getDirectionsUrl = (hospital: Hospital) => {
+    if (!userLocation) {
+      return "#";
+    }
+
+    const origin = `${userLocation.latitude},${userLocation.longitude}`;
+    const destination = `${hospital.latitude},${hospital.longitude}`;
+    return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`;
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -230,6 +331,85 @@ export function ImageAnalyzer() {
                       {level}
                     </button>
                   ))}
+                </div>
+
+                <div className="border rounded-lg p-4">
+                  <div className="flex flex-wrap gap-2 items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-500">Nearby Hospitals</p>
+                      <p className="text-sm text-gray-700">
+                        Use your GPS location to find nearest anti-venom and general hospitals.
+                      </p>
+                    </div>
+                    <button
+                      onClick={requestUserLocation}
+                      disabled={isLocating}
+                      className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 py-2 rounded-lg text-sm"
+                    >
+                      <Navigation size={16} />
+                      {isLocating ? "Locating..." : "Use My Location"}
+                    </button>
+                  </div>
+
+                  {userLocation ? (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Current location: {userLocation.latitude.toFixed(5)}, {userLocation.longitude.toFixed(5)}
+                    </p>
+                  ) : null}
+
+                  {hospitalError ? (
+                    <p className="text-sm text-red-600 mt-3">{hospitalError}</p>
+                  ) : null}
+
+                  {isFetchingHospitals ? (
+                    <p className="text-sm text-gray-600 mt-3">Finding nearby hospitals...</p>
+                  ) : null}
+
+                  {!isFetchingHospitals && (antiVenomHospitals.length > 0 || generalHospitals.length > 0) ? (
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <div className="border rounded-lg p-3 bg-red-50">
+                        <h3 className="font-semibold text-red-700 mb-2">Top Anti-Venom Hospitals</h3>
+                        <div className="space-y-2">
+                          {antiVenomHospitals.map((hospital) => (
+                            <div key={`anti-${hospital.id}`} className="rounded-md border border-red-200 bg-white p-2">
+                              <p className="font-medium text-sm">{hospital.name}</p>
+                              <p className="text-xs text-gray-600">{hospital.city || "City not available"}</p>
+                              <p className="text-xs text-gray-600">{hospital.distance_km} km away</p>
+                              <a
+                                href={getDirectionsUrl(hospital)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-blue-700 mt-1"
+                              >
+                                <MapPin size={14} /> Directions <ExternalLink size={12} />
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="border rounded-lg p-3 bg-emerald-50">
+                        <h3 className="font-semibold text-emerald-700 mb-2">Top General Hospitals</h3>
+                        <div className="space-y-2">
+                          {generalHospitals.map((hospital) => (
+                            <div key={`general-${hospital.id}`} className="rounded-md border border-emerald-200 bg-white p-2">
+                              <p className="font-medium text-sm">{hospital.name}</p>
+                              <p className="text-xs text-gray-600">{hospital.city || "City not available"}</p>
+                              <p className="text-xs text-gray-600">{hospital.distance_km} km away</p>
+                              <a
+                                href={getDirectionsUrl(hospital)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-blue-700 mt-1"
+                              >
+                                <MapPin size={14} /> Directions <ExternalLink size={12} />
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             )}

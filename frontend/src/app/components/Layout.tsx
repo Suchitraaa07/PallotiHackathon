@@ -6,7 +6,8 @@ import {
   Shield, 
   Activity,
   Leaf,
-  AlertTriangle
+  AlertTriangle,
+  Phone
 } from 'lucide-react';
 
 export function Layout() {
@@ -74,6 +75,17 @@ export function Layout() {
               >
                 <Shield className="size-4" />
                 <span className="text-sm">Risk Check</span>
+              </Link>
+              <Link 
+                to="/emergency"
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors font-semibold ${
+                  location.pathname === '/emergency' 
+                    ? 'bg-red-600 text-white' 
+                    : 'bg-red-50 text-red-600 hover:bg-red-100'
+                }`}
+              >
+                <Phone className="size-4" />
+                <span className="text-sm">Emergency</span>
               </Link>
             </div>
 

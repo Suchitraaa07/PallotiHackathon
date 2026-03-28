@@ -40,7 +40,7 @@ export function MapSection() {
             })
           )
           .filter(
-            (item) =>
+            (item: HeatmapPoint) =>
               Number.isFinite(item.latitude) && Number.isFinite(item.longitude)
           );
 

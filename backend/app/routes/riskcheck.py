@@ -1,6 +1,7 @@
 
 import json
 import os
+import socket
 from datetime import datetime
 from pathlib import Path
 from urllib import error as url_error
@@ -9,9 +10,12 @@ from urllib import request as url_request
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
+from app.services.risk_service import calculate_snakebite_risk
 from app.services.severity_service import calculate_severity
 
 router = APIRouter()
+REPORT_FETCH_LIMIT = 250
+_reports_cache: list[dict] = []
 
 class SymptomInput(BaseModel):
     symptoms: List[str]
@@ -35,6 +39,12 @@ class IncidentReportInput(BaseModel):
     snakeType: str = "Unknown"
     venomStatus: str = "Unknown"
     additionalNotes: str = ""
+
+
+class SnakebiteRiskInput(BaseModel):
+    latitude: float
+    longitude: float
+    severity: str
 
 
 def _read_env_file_var(var_name: str) -> str:
@@ -137,7 +147,9 @@ def _insert_report_to_supabase(data: IncidentReportInput) -> dict:
         ) from exc
 
 
-def _fetch_reports_from_supabase() -> list[dict]:
+def _fetch_reports_from_supabase() -> tuple[list[dict], str | None]:
+    global _reports_cache
+
     supabase_url = (
         os.getenv("SUPABASE_URL", "") or _read_env_file_var("SUPABASE_URL")
     ).rstrip("/")
@@ -153,8 +165,9 @@ def _fetch_reports_from_supabase() -> list[dict]:
 
     request_url = (
         f"{supabase_url}/rest/v1/reports"
-        "?select=id,latitude,longitude,created_at"
+        "?select=id,latitude,longitude,created_at,environment,weather_condition,temperature,season,time_of_day"
         "&order=created_at.desc"
+        f"&limit={REPORT_FETCH_LIMIT}"
     )
     request_headers = {
         "apikey": supabase_service_role_key,
@@ -168,10 +181,12 @@ def _fetch_reports_from_supabase() -> list[dict]:
     )
 
     try:
-        with url_request.urlopen(req, timeout=12) as resp:
+        with url_request.urlopen(req, timeout=20) as resp:
             raw_body = resp.read().decode("utf-8")
             parsed = json.loads(raw_body) if raw_body else []
-            return parsed if isinstance(parsed, list) else []
+            reports = parsed if isinstance(parsed, list) else []
+            _reports_cache = reports
+            return reports, None
     except url_error.HTTPError as exc:
         err_body = exc.read().decode("utf-8") if hasattr(exc, "read") else ""
         raise HTTPException(
@@ -179,10 +194,17 @@ def _fetch_reports_from_supabase() -> list[dict]:
             detail=f"Supabase reports fetch failed: {err_body or str(exc)}",
         ) from exc
     except url_error.URLError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Supabase request failed: {exc.reason}",
-        ) from exc
+        fallback_warning = (
+            f"Supabase request failed: {exc.reason}. "
+            f"Serving {len(_reports_cache)} cached reports instead."
+        )
+        return _reports_cache, fallback_warning
+    except (TimeoutError, socket.timeout) as exc:
+        fallback_warning = (
+            "Supabase reports request timed out while reading the response. "
+            f"Serving {len(_reports_cache)} cached reports instead."
+        )
+        return _reports_cache, fallback_warning
 
 @router.post("/severity")
 def get_severity(data: SymptomInput):
@@ -204,11 +226,24 @@ def report_incident(data: IncidentReportInput):
     }
 
 
+@router.post("/risk-score")
+def get_risk_score(data: SnakebiteRiskInput):
+    return calculate_snakebite_risk(
+        latitude=data.latitude,
+        longitude=data.longitude,
+        severity=data.severity,
+    )
+
+
 @router.get("/reports")
 def get_reports():
-    reports = _fetch_reports_from_supabase()
+    reports, warning = _fetch_reports_from_supabase()
 
-    return {
+    response = {
         "count": len(reports),
         "reports": reports,
     }
+    if warning:
+        response["warning"] = warning
+
+    return response

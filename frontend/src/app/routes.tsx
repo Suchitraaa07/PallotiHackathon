@@ -1,4 +1,8 @@
 import { createBrowserRouter } from "react-router-dom";
+import { EmergencyContacts } from "./components/EmergencyContacts";
+import { FirstAidGuide } from "./components/FirstAidGuide";
+import { Home } from "./components/Home";
+import { Hospitals } from "./components/Hospitals";
 import { Layout } from "./components/Layout";
 import { ImageAnalyzer } from "./components/ImageAnalyzer";
 import { MapSection } from "./components/MapSection";
@@ -11,10 +15,14 @@ export const router = createBrowserRouter([
     path: "/",
     Component: Layout,
     children: [
-      { index: true, Component: ImageAnalyzer },
+      { index: true, Component: Home },
+      { path: "identify", Component: ImageAnalyzer },
       { path: "map", Component: MapSection },
       { path: "report", Component: ReportIncident },
-      { path: "risk-check", Component: RiskCheck},
+      { path: "risk-check", Component: RiskCheck },
+      { path: "first-aid", Component: FirstAidGuide },
+      { path: "contacts", Component: EmergencyContacts },
+      { path: "hospitals", Component: Hospitals },
       { path: "result", Component: Result },
     ],
   },

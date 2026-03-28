@@ -1,5 +1,7 @@
 import { useState } from "react";
 import {
+  AlertTriangle,
+  Camera,
   Upload,
   CheckCircle2,
   ScanLine,
@@ -11,6 +13,7 @@ type AnalysisResult = {
   confidence: number;
   risk_level: string;
   recommended_action: string;
+  detection_source?: string;
 };
 
 export function ImageAnalyzer() {
@@ -21,11 +24,13 @@ export function ImageAnalyzer() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [notice, setNotice] = useState("");
 
   const resetAnalysisState = () => {
     setIsAnalyzed(false);
     setAnalysis(null);
     setError("");
+    setNotice("");
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,6 +62,7 @@ export function ImageAnalyzer() {
 
     setIsLoading(true);
     setError("");
+    setNotice("");
 
     const formData = new FormData();
     formData.append("file", uploadedFile);
@@ -75,6 +81,11 @@ export function ImageAnalyzer() {
       setAnalysis(data);
       setSelectedRisk(data.risk_level.toLowerCase());
       setIsAnalyzed(true);
+      if (data.species === "Not a snake") {
+        setNotice("The detector rejected this image before snake classification.");
+      } else if (data.species === "Unclear snake image") {
+        setNotice("A snake-like shape was detected, but the classifier was not confident enough.");
+      }
     } catch (err) {
       setAnalysis(null);
       setIsAnalyzed(false);
@@ -95,7 +106,28 @@ export function ImageAnalyzer() {
         ? "bg-amber-500 text-white"
         : analysis?.risk_level === "LOW"
           ? "bg-green-600 text-white"
-          : "bg-gray-500 text-white";
+        : "bg-gray-500 text-white";
+
+  const resultAccentClass =
+    analysis?.species === "Not a snake"
+      ? "border-sky-200 bg-sky-50"
+      : analysis?.species === "Unclear snake image"
+        ? "border-amber-200 bg-amber-50"
+        : "border-gray-200 bg-white";
+
+  const resultTitle =
+    analysis?.species === "Not a snake"
+      ? "No snake detected"
+      : analysis?.species === "Unclear snake image"
+        ? "Snake image unclear"
+        : "Snake analysis result";
+
+  const resultSummary =
+    analysis?.species === "Not a snake"
+      ? "The first-stage detector filtered this image out before venom classification."
+      : analysis?.species === "Unclear snake image"
+        ? "The image may contain a snake, but the second-stage classifier needs a clearer view."
+        : "The image passed both detection and classification stages.";
 
   return (
     <main className="max-w-7xl mx-auto w-full px-6 py-8 bg-[#f6f3ee] min-h-screen">
@@ -105,9 +137,9 @@ export function ImageAnalyzer() {
             <div className="flex items-center gap-3 mb-5">
               <Upload className="text-green-600" />
               <div>
-                <h2 className="text-lg font-semibold">Upload Bite Image</h2>
+                <h2 className="text-lg font-semibold">Upload Snake Image</h2>
                 <p className="text-sm text-gray-500">
-                  Upload a clear photo of the bite area
+                  Upload a clear photo of the snake for two-stage detection
                 </p>
               </div>
             </div>
@@ -161,6 +193,10 @@ export function ImageAnalyzer() {
             {error && (
               <p className="text-sm text-red-600 mt-3 text-center">{error}</p>
             )}
+
+            {notice && (
+              <p className="mt-3 text-center text-sm text-amber-700">{notice}</p>
+            )}
           </div>
         </div>
 
@@ -171,7 +207,7 @@ export function ImageAnalyzer() {
               <div>
                 <h2 className="text-lg font-semibold">Analysis Result</h2>
                 <p className="text-sm text-gray-500">
-                  AI has analyzed the image
+                  Detection gate runs before venom classification
                 </p>
               </div>
             </div>
@@ -182,14 +218,35 @@ export function ImageAnalyzer() {
               </div>
             ) : (
               <div className="space-y-4">
+                <div className={`rounded-lg border p-4 ${resultAccentClass}`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">{resultTitle}</p>
+                      <p className="mt-1 text-sm text-gray-600">{resultSummary}</p>
+                    </div>
+                    {analysis.species === "Not a snake" ? (
+                      <Camera className="text-sky-600" size={20} />
+                    ) : analysis.species === "Unclear snake image" ? (
+                      <AlertTriangle className="text-amber-600" size={20} />
+                    ) : (
+                      <CheckCircle2 className="text-green-600" size={20} />
+                    )}
+                  </div>
+                </div>
+
                 <div className="border rounded-lg p-4">
-                  <p className="text-sm text-gray-500">Species Detected</p>
+                  <p className="text-sm text-gray-500">Detection Output</p>
                   <p className="font-semibold text-lg">{analysis.species}</p>
+                  {analysis.detection_source && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Detection source: {analysis.detection_source}
+                    </p>
+                  )}
                 </div>
 
                 <div className="border rounded-lg p-4">
                   <div className="flex justify-between text-sm mb-2">
-                    <span>Confidence Level</span>
+                    <span>Model Confidence</span>
                     <span className="text-green-600 font-medium flex items-center gap-1">
                       <TrendingUp size={14} /> {analysis.confidence.toFixed(2)}%
                     </span>
@@ -211,7 +268,7 @@ export function ImageAnalyzer() {
 
                 <div className="border rounded-lg p-4">
                   <p className="text-sm text-gray-500">Recommended Action</p>
-                  <p className="text-red-600 font-semibold">
+                  <p className="font-semibold text-red-600">
                     {analysis.recommended_action}
                   </p>
                 </div>

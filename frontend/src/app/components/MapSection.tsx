@@ -290,6 +290,7 @@ export function MapSection() {
   const [hotspots, setHotspots] = useState<HotspotRegion[]>([]);
   const [predictionPoints, setPredictionPoints] = useState<PredictionPoint[]>([]);
   const [heatmapError, setHeatmapError] = useState("");
+  const [heatmapWarning, setHeatmapWarning] = useState("");
   const [loading, setLoading] = useState(true);
   const [locationStatus, setLocationStatus] = useState(
     "Fetching current conditions..."
@@ -335,6 +336,7 @@ export function MapSection() {
     const fetchReportData = async () => {
       try {
         setHeatmapError("");
+        setHeatmapWarning("");
         setLoading(true);
 
         const response = await fetch("http://127.0.0.1:8000/api/reports");
@@ -342,6 +344,10 @@ export function MapSection() {
 
         if (!response.ok) {
           throw new Error(payload?.detail || "Failed to fetch reports");
+        }
+
+        if (payload?.warning) {
+          setHeatmapWarning(String(payload.warning));
         }
 
         const validReports: StoredReport[] = (payload?.reports ?? [])
@@ -462,6 +468,12 @@ export function MapSection() {
       {heatmapError && (
         <div className="mb-3 rounded-lg border border-red-300 bg-red-100 p-3 text-sm text-red-700">
           {heatmapError}
+        </div>
+      )}
+
+      {heatmapWarning && !heatmapError && (
+        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-100 p-3 text-sm text-amber-800">
+          {heatmapWarning}
         </div>
       )}
 

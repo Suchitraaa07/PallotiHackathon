@@ -31,10 +31,17 @@ export function Layout() {
             </Link>
             
             <div className="hidden md:flex items-center gap-8">
-              <button className="flex items-center gap-2 text-gray-600 hover:text-green-700 transition-colors">
+              <Link
+                to="/map"
+                className={`flex items-center gap-2 transition-colors ${
+                  location.pathname === '/map'
+                    ? 'text-green-700'
+                    : 'text-gray-600 hover:text-green-700'
+                }`}
+              >
                 <MapPin className="size-4" />
                 <span className="text-sm">Map</span>
-              </button>
+              </Link>
               <Link 
                 to="/"
                 className={`flex items-center gap-2 transition-colors ${

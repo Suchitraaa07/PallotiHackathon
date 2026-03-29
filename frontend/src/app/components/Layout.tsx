@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   FileText,
+  HeartPulse,
   Home as HomeIcon,
   Leaf,
   MapPin,
@@ -20,6 +21,7 @@ const navItems = [
   { to: "/map", label: "Map", icon: MapPin },
   { to: "/report", label: "Report Incident", icon: FileText },
   { to: "/risk-check", label: "Risk Check", icon: Shield },
+  { to: "/first-aid", label: "First Aid", icon: HeartPulse },
   { to: "/contacts", label: "Emergency Contacts", icon: Phone },
 ];
 
@@ -59,7 +61,9 @@ export function Layout() {
                     key={item.to}
                     to={item.to}
                     className={`flex items-center gap-2 transition-colors ${
-                      isActive ? "text-[#d9e5d7]" : "text-[#f3e5df] hover:text-[#d9e5d7]"
+                      isActive
+                        ? "text-[#f7d8c8]"
+                        : "text-[#ead7d0] hover:text-[#f7d8c8]"
                     }`}
                   >
                     <Icon className="size-4" />
@@ -76,7 +80,7 @@ export function Layout() {
               </Link>
             </div>
 
-            <div className="hidden md:flex items-center gap-2 bg-[#2f6b45]/25 px-4 py-2 rounded-full border border-[#9fc5a8]/30">
+            <div className="hidden md:flex items-center gap-2 rounded-full border border-[#9fc5a8]/30 bg-[#2f6b45]/25 px-4 py-2">
               <Activity className="size-4 text-[#9fc5a8] animate-pulse" />
               <span className="text-sm text-[#f3e5df]">System Active</span>
             </div>
@@ -109,7 +113,9 @@ export function Layout() {
                 </span>
                 <div>
                   <p className="font-semibold text-[#f8ece6]">Navigation</p>
-                  <p className="text-xs text-[#e1c8bf]">Quick access to emergency tools</p>
+                  <p className="text-xs text-[#e1c8bf]">
+                    Quick access to emergency tools
+                  </p>
                 </div>
               </div>
             </div>

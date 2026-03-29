@@ -48,7 +48,7 @@ export function Hero() {
           </Link>
 
           <Link
-            to="/emergency"
+            to="/risk-check"
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 px-8 rounded-lg flex items-center justify-center gap-2 shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-105"
           >
             <span>Risk Assessment</span>

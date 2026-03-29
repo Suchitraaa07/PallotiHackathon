@@ -224,7 +224,7 @@ export function HospitalPortalPage() {
       return;
     }
 
-    const incidentsChannel = supabase
+    const incidentsChannel = (supabase as any)
       .channel("hospital-incidents-live")
       .on(
         "postgres_changes",
@@ -254,7 +254,7 @@ export function HospitalPortalPage() {
       return;
     }
 
-    const requestsChannel = supabase
+    const requestsChannel = (supabase as any)
       .channel("hospital-case-requests")
       .on(
         "postgres_changes",

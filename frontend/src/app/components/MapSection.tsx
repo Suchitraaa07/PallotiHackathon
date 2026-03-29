@@ -352,21 +352,44 @@ export function MapSection() {
 
         const validReports: StoredReport[] = (payload?.reports ?? [])
           .filter(
-            (item: StoredReport) =>
-              Number.isFinite(item.latitude) && Number.isFinite(item.longitude)
-          );
+            (report: StoredReport) =>
+              report.latitude !== null &&
+              report.longitude !== null &&
+              !Number.isNaN(Number(report.latitude)) &&
+              !Number.isNaN(Number(report.longitude))
+          )
+          .sort(
+            (left: StoredReport, right: StoredReport) =>
+              new Date(right.created_at ?? "").getTime() -
+              new Date(left.created_at ?? "").getTime()
+          )
+          .map((report: StoredReport, index: number) => ({
+            id: report.id,
+            created_at: report.created_at ?? null,
+            latitude: Number(report.latitude),
+            longitude: Number(report.longitude),
+            intensity: 1,
+            isLatest: index === 0,
+            environment: report.environment ?? null,
+            weather_condition: report.weather_condition ?? null,
+            temperature:
+              report.temperature === null || report.temperature === undefined
+                ? null
+                : Number(report.temperature),
+            season: report.season ?? null,
+            time_of_day: report.time_of_day ?? null,
+            matchScore: 0,
+          }));
 
         setReports(validReports);
-
-        if (!validReports.length) {
-          setHeatmapError(
-            "No incidents found in reports table with valid latitude/longitude."
-          );
-        }
-      } catch (err: any) {
-        console.error("Fetch error:", err);
+      } catch (error: unknown) {
+        console.error("Fetch error:", error);
         setReports([]);
-        setHeatmapError(err?.message || "Failed to load heatmap data");
+        setHotspots([]);
+        setPredictionPoints([]);
+        setHeatmapError(
+          error instanceof Error ? error.message : "Failed to load hotspot data"
+        );
       } finally {
         setLoading(false);
       }

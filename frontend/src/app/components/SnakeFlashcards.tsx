@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Database, Mic, RefreshCw, Search } from "lucide-react";
+import { Database, Mic, RefreshCw, Search, X } from "lucide-react";
 
 type Flashcard = {
   id: string;
@@ -18,6 +18,14 @@ type FlashcardResponse = {
   count: number;
   items: Flashcard[];
   warning?: string;
+};
+
+type SpeciesAdvice = {
+  species: string;
+  venom_type: string;
+  danger_level: string;
+  prevention: string[];
+  first_aid: string[];
 };
 
 const API_BASE = "http://127.0.0.1:8000";
@@ -62,6 +70,34 @@ export function SnakeFlashcards() {
   const [mode, setMode] = useState<"browse" | "similar">("browse");
   const [sourceFile, setSourceFile] = useState("");
   const [total, setTotal] = useState(0);
+  const [selectedCard, setSelectedCard] = useState<Flashcard | null>(null);
+  const [advice, setAdvice] = useState<SpeciesAdvice | null>(null);
+  const [adviceLoading, setAdviceLoading] = useState(false);
+  const [adviceError, setAdviceError] = useState("");
+
+  const loadSpeciesAdvice = async (card: Flashcard) => {
+    setSelectedCard(card);
+    setAdvice(null);
+    setAdviceError("");
+    setAdviceLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/api/snake-flashcards/advice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ species: card.species }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.detail || "Failed to load species advice.");
+      }
+      setAdvice(payload as SpeciesAdvice);
+    } catch (err) {
+      setAdviceError(err instanceof Error ? err.message : "Failed to load species advice.");
+    } finally {
+      setAdviceLoading(false);
+    }
+  };
 
   const loadCards = async () => {
     try {
@@ -333,7 +369,7 @@ export function SnakeFlashcards() {
           {cards.map((card) => (
             <article
               key={card.id}
-              className="overflow-hidden rounded-2xl border border-[#d8c6bc] bg-white shadow-sm"
+              className="overflow-hidden rounded-2xl border border-[#d8c6bc] bg-white shadow-sm transition hover:shadow-md"
             >
               <div className="aspect-[4/3] w-full bg-[#f3e9e3]">
                 <img
@@ -371,10 +407,111 @@ export function SnakeFlashcards() {
                     Similarity: {(card.similarity_score * 100).toFixed(1)}%
                   </p>
                 )}
+                <button
+                  type="button"
+                  onClick={() => loadSpeciesAdvice(card)}
+                  className="mt-2 w-full rounded-lg border border-[#8f5b4e] bg-[#f8ece6] px-3 py-2 text-xs font-semibold text-[#6f2e2e] transition hover:bg-[#f1dfd6]"
+                >
+                  Open Safety Details
+                </button>
               </div>
             </article>
           ))}
         </div>
+
+        {selectedCard && (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            <button
+              type="button"
+              className="flex-1 bg-black/35"
+              onClick={() => {
+                setSelectedCard(null);
+                setAdvice(null);
+                setAdviceError("");
+              }}
+              aria-label="Close details panel"
+            />
+            <aside className="h-full w-full max-w-md overflow-y-auto border-l border-[#d8c6bc] bg-white p-5 shadow-2xl">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-[#4b2424]">
+                    {selectedCard.species || "Unknown species"}
+                  </h2>
+                  <p className="text-xs text-[#7b5b55]">
+                    Groq safety guidance
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-lg border border-[#d8c6bc] p-2 text-[#7b5b55]"
+                  onClick={() => {
+                    setSelectedCard(null);
+                    setAdvice(null);
+                    setAdviceError("");
+                  }}
+                  aria-label="Close details panel"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              {adviceLoading && (
+                <p className="text-sm text-[#6f4d46]">Loading Gemini response...</p>
+              )}
+
+              {adviceError && (
+                <div className="rounded-lg border border-red-300 bg-red-100 p-3 text-sm text-red-700">
+                  {adviceError}
+                </div>
+              )}
+
+              {!adviceLoading && !adviceError && advice && (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-[#d8c6bc] bg-[#faf4f1] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8b6a62]">
+                      Venom Type
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-[#4b2424]">
+                      {advice.venom_type}
+                    </p>
+                    <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-[#8b6a62]">
+                      Danger Level
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-[#4b2424]">
+                      {advice.danger_level}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-[#d8c6bc] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8b6a62]">
+                      Preventive Measures
+                    </p>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[#5c4a46]">
+                      {advice.prevention.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="rounded-lg border border-[#d8c6bc] p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8b6a62]">
+                      First Aid
+                    </p>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[#5c4a46]">
+                      {advice.first_aid.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                    This is system-generated information. In case of snake bite, seek immediate medical help.
+                  </div>
+                </div>
+              )}
+            </aside>
+          </div>
+        )}
       </section>
     </main>
   );

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 
 import { getCurrentUserWithProfile, type AppRole } from "../../auth/authService";
+import { supabase } from "../../../lib/supabaseClient";
 
 function LoadingGate() {
   return (
@@ -54,6 +55,30 @@ export function AuthRequiredGuard() {
   return <Outlet />;
 }
 
+async function isHospitalInDatabase(hospitalName: string): Promise<boolean> {
+  if (!supabase || !hospitalName) {
+    return false;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("hospitals")
+      .select("id, name")
+      .ilike("name", `%${hospitalName}%`)
+      .limit(1);
+
+    if (error) {
+      console.error("Error checking hospital:", error);
+      return false;
+    }
+
+    return data && data.length > 0;
+  } catch (err) {
+    console.error("Error querying hospitals table:", err);
+    return false;
+  }
+}
+
 export function RoleGuard({ role }: { role: AppRole }) {
   const [isLoading, setIsLoading] = useState(true);
   const [decision, setDecision] = useState<"allow" | "login" | "pending" | "deny">("login");
@@ -79,9 +104,14 @@ export function RoleGuard({ role }: { role: AppRole }) {
           return;
         }
 
-        if (role === "hospital" && profile.verification_status !== "approved") {
-          setDecision("pending");
-          return;
+        // FOR HOSPITALS: Check if hospital name exists in hospitals table
+        if (role === "hospital") {
+          const hospitalExists = await isHospitalInDatabase(profile.name);
+          
+          if (!hospitalExists) {
+            setDecision("pending");
+            return;
+          }
         }
 
         setDecision("allow");

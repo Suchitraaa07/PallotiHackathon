@@ -1,7 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { type AppRole, signUpWithRole } from "../../auth/authService";
+import {
+  AUTH_RATE_LIMIT_COOLDOWN_SECONDS,
+  type AppRole,
+  isRateLimitAuthError,
+  signUpWithRole,
+} from "../../auth/authService";
 
 export function SignupPage() {
   const navigate = useNavigate();
@@ -12,9 +17,34 @@ export function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [cooldownUntil, setCooldownUntil] = useState<number>(0);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) {
+      setCooldownSeconds(0);
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      const remaining = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setCooldownSeconds(0);
+        window.clearInterval(interval);
+        return;
+      }
+      setCooldownSeconds(remaining);
+    }, 250);
+
+    return () => window.clearInterval(interval);
+  }, [cooldownUntil]);
 
   const handleSignup = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (cooldownSeconds > 0) {
+      return;
+    }
+
     setError("");
     setSuccess("");
     setIsSubmitting(true);
@@ -26,6 +56,12 @@ export function SignupPage() {
         navigate("/login", { replace: true });
       }, 1200);
     } catch (signupError) {
+      if (isRateLimitAuthError(signupError)) {
+        const until = Date.now() + AUTH_RATE_LIMIT_COOLDOWN_SECONDS * 1000;
+        setCooldownUntil(until);
+        setCooldownSeconds(AUTH_RATE_LIMIT_COOLDOWN_SECONDS);
+      }
+
       setError(
         signupError instanceof Error ? signupError.message : "Signup failed."
       );
@@ -100,10 +136,14 @@ export function SignupPage() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || cooldownSeconds > 0}
             className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium rounded-lg py-2.5"
           >
-            {isSubmitting ? "Creating account..." : "Sign up"}
+            {isSubmitting
+              ? "Creating account..."
+              : cooldownSeconds > 0
+                ? `Try again in ${cooldownSeconds}s`
+                : "Sign up"}
           </button>
         </form>
 

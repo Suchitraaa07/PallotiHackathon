@@ -1,4 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
+import { FirstAidGuide } from "./components/FirstAidGuide";
+import { Home } from "./components/Home";
+import { Hospitals } from "./components/Hospitals";
 import { Layout } from "./components/Layout";
 import { ImageAnalyzer } from "./components/ImageAnalyzer";
 import { MapSection } from "./components/MapSection";
@@ -10,12 +13,10 @@ import { LoginPage } from "./components/auth/LoginPage";
 import { SignupPage } from "./components/auth/SignupPage";
 import { WaitingApprovalPage } from "./components/auth/WaitingApprovalPage";
 import { AccessDeniedPage } from "./components/auth/AccessDeniedPage";
-import { UserDashboardPage } from "./components/auth/UserDashboardPage";
-import { HospitalDashboardPage } from "./components/auth/HospitalDashboardPage";
+import { HospitalPortalPage } from "./components/auth/HospitalPortalPage";
 import {
   AuthRequiredGuard,
   HospitalRoleGuard,
-  UserRoleGuard,
 } from "./components/auth/AuthGuards";
 
 export const router = createBrowserRouter([
@@ -27,12 +28,8 @@ export const router = createBrowserRouter([
     Component: AuthRequiredGuard,
     children: [
       {
-        Component: UserRoleGuard,
-        children: [{ path: "/user-dashboard", Component: UserDashboardPage }],
-      },
-      {
         Component: HospitalRoleGuard,
-        children: [{ path: "/hospital-dashboard", Component: HospitalDashboardPage }],
+        children: [{ path: "/hospital-dashboard", Component: HospitalPortalPage }],
       },
     ],
   },
@@ -40,10 +37,14 @@ export const router = createBrowserRouter([
     path: "/",
     Component: Layout,
     children: [
-      { index: true, Component: ImageAnalyzer },
+      { index: true, Component: Home },
+      { path: "identify", Component: ImageAnalyzer },
       { path: "map", Component: MapSection },
       { path: "report", Component: ReportIncident },
-      { path: "risk-check", Component: RiskCheck},
+      { path: "risk-check", Component: RiskCheck },
+      { path: "first-aid", Component: FirstAidGuide },
+      { path: "contacts", Component: EmergencyContact },
+      { path: "hospitals", Component: Hospitals },
       { path: "result", Component: Result },
       { path: "emergency", Component: EmergencyContact },
     ],

@@ -10,6 +10,7 @@ import {
   Navigation,
   Send,
 } from "lucide-react";
+import { supabase } from "../../lib/supabaseClient";
 
 export function ReportIncident() {
   const autoFieldNames = new Set([
@@ -237,6 +238,63 @@ export function ReportIncident() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const createHospitalRequests = async (
+    incidentId: string,
+    latitude: number,
+    longitude: number
+  ) => {
+    if (!supabase) {
+      return 0;
+    }
+
+    try {
+      const nearbyRes = await fetch(
+        `http://127.0.0.1:8000/api/nearby-hospitals?latitude=${latitude}&longitude=${longitude}&risk_level=HIGH&limit=5`
+      );
+
+      if (!nearbyRes.ok) {
+        return 0;
+      }
+
+      const nearbyData = await nearbyRes.json();
+      const antiVenom = Array.isArray(nearbyData?.anti_venom_hospitals)
+        ? nearbyData.anti_venom_hospitals
+        : [];
+      const general = Array.isArray(nearbyData?.general_hospitals)
+        ? nearbyData.general_hospitals
+        : [];
+
+      const hospitalIds = Array.from(
+        new Set(
+          [...antiVenom, ...general]
+            .map((hospital: { id?: string }) => hospital.id)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+
+      if (hospitalIds.length === 0) {
+        return 0;
+      }
+
+      const rows = hospitalIds.map((hospitalId) => ({
+        incident_id: incidentId,
+        hospital_id: hospitalId,
+        status: "pending",
+      }));
+
+      const { error } = await supabase.from("case_requests").insert(rows);
+      if (error) {
+        console.error("Failed to create case requests:", error);
+        return 0;
+      }
+
+      return rows.length;
+    } catch (error) {
+      console.error("Failed to create hospital requests:", error);
+      return 0;
+    }
+  };
+
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
@@ -286,8 +344,26 @@ export function ReportIncident() {
 
       const responseData = await res.json();
 
+      const reportId = responseData?.report?.id;
+      let createdRequests = 0;
+      if (
+        typeof reportId === "string" &&
+        typeof payload.latitude === "number" &&
+        typeof payload.longitude === "number"
+      ) {
+        createdRequests = await createHospitalRequests(
+          reportId,
+          payload.latitude,
+          payload.longitude
+        );
+      }
+
       setIsSubmitted(true);
-      setSubmitMessage(responseData?.message || "Report saved successfully");
+      setSubmitMessage(
+        createdRequests > 0
+          ? `Report saved successfully. Sent ${createdRequests} hospital request(s).`
+          : responseData?.message || "Report saved successfully"
+      );
 
       setTimeout(() => {
         setIsSubmitted(false);

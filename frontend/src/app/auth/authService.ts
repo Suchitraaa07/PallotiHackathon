@@ -18,6 +18,53 @@ export type SignUpPayload = {
   role: AppRole;
 };
 
+export const AUTH_RATE_LIMIT_COOLDOWN_SECONDS = 60;
+
+function normalizeAuthErrorMessage(rawMessage: string) {
+  const message = rawMessage.toLowerCase();
+
+  if (message.includes("rate limit") || message.includes("too many requests")) {
+    return `Too many attempts. Please wait ${AUTH_RATE_LIMIT_COOLDOWN_SECONDS} seconds and try again.`;
+  }
+
+  if (message.includes("invalid login credentials")) {
+    return "Invalid email or password. If you signed up recently, verify your email first.";
+  }
+
+  if (message.includes("email not confirmed")) {
+    return "Please verify your email before logging in.";
+  }
+
+  if (message.includes("already registered") || message.includes("already been registered")) {
+    return "This email is already registered. Please login or verify email if not confirmed yet.";
+  }
+
+  return rawMessage;
+}
+
+export function isRateLimitAuthError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const msg = error.message.toLowerCase();
+  return msg.includes("rate limit") || msg.includes("too many requests");
+}
+
+export async function resendSignupVerificationEmail(email: string, redirectTo?: string) {
+  const client = ensureSupabaseClient();
+
+  const { error } = await client.auth.resend({
+    type: "signup",
+    email,
+    options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+  });
+
+  if (error) {
+    throw new Error(normalizeAuthErrorMessage(error.message));
+  }
+}
+
 function ensureSupabaseClient() {
   if (!supabase) {
     throw new Error(
@@ -36,7 +83,7 @@ export async function signUpWithRole(payload: SignUpPayload) {
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(normalizeAuthErrorMessage(error.message));
   }
 
   const user = data.user;
@@ -55,7 +102,7 @@ export async function signUpWithRole(payload: SignUpPayload) {
   });
 
   if (profileInsertError) {
-    throw new Error(profileInsertError.message);
+    throw new Error(normalizeAuthErrorMessage(profileInsertError.message));
   }
 
   return user;
@@ -70,7 +117,7 @@ export async function loginWithPassword(email: string, password: string) {
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(normalizeAuthErrorMessage(error.message));
   }
 
   return data;
@@ -80,7 +127,7 @@ export async function signOutUser() {
   const client = ensureSupabaseClient();
   const { error } = await client.auth.signOut();
   if (error) {
-    throw new Error(error.message);
+    throw new Error(normalizeAuthErrorMessage(error.message));
   }
 }
 
@@ -88,7 +135,7 @@ export async function getCurrentUser() {
   const client = ensureSupabaseClient();
   const { data, error } = await client.auth.getUser();
   if (error) {
-    throw new Error(error.message);
+    throw new Error(normalizeAuthErrorMessage(error.message));
   }
 
   return data.user;
@@ -104,7 +151,7 @@ export async function getProfileByUserId(userId: string) {
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(normalizeAuthErrorMessage(error.message));
   }
 
   return data as ProfileRecord;

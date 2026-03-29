@@ -30,6 +30,17 @@ type SymptomApiResponse = {
   symptoms?: string[];
 };
 type TabKey = "input" | "result" | "actions" | "report";
+type SpeechRecognitionCtor = new () => {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  maxAlternatives: number;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
 
 function normalizeRiskLevel(level: string | undefined) {
   const normalized = String(level ?? "").trim().toLowerCase();
@@ -96,8 +107,7 @@ export function EmergencyFlow() {
   const [voiceError, setVoiceError] = useState("");
   const [voiceStatus, setVoiceStatus] = useState("");
   const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
-  const voiceTimeoutRef = useRef<number | null>(null);
+  const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
 
   const riskLevel = riskResult?.riskLevel ?? "UNKNOWN";
 
@@ -157,137 +167,119 @@ export function EmergencyFlow() {
     runRiskAssessment();
   }, [step, symptoms]);
 
+  const extractSymptomsFromText = async (transcript: string) => {
+    setLoading(true);
+    try {
+      const { response, data } = await postJsonWithFallback<SymptomApiResponse>(
+        "http://127.0.0.1:8000/api/extract",
+        "http://127.0.0.1:8000/api/extract-symptoms",
+        { text: transcript }
+      );
+      if (!response.ok) {
+        throw new Error("Symptom extraction failed.");
+      }
+
+      const extractedSymptoms = (data?.symptoms ?? []).filter(Boolean);
+      if (extractedSymptoms.length === 0) {
+        throw new Error("Voice captured but no known symptoms were extracted.");
+      }
+      setSymptoms(extractedSymptoms);
+      setStep(2);
+    } catch (err) {
+      setVoiceError(err instanceof Error ? err.message : "Voice input failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cleanupRecognition = () => {
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
+      recognitionRef.current = null;
+    }
+  };
+
   useEffect(() => {
+    return () => {
+      cleanupRecognition();
+    };
+  }, []);
+
+  const startVoiceInput = () => {
+    setVoiceError("");
+    setVoiceStatus("Listening...");
+    setVoiceTranscript("");
+
     const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      (window as Window & {
+        SpeechRecognition?: SpeechRecognitionCtor;
+        webkitSpeechRecognition?: SpeechRecognitionCtor;
+      }).SpeechRecognition ||
+      (window as Window & {
+        SpeechRecognition?: SpeechRecognitionCtor;
+        webkitSpeechRecognition?: SpeechRecognitionCtor;
+      }).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      recognitionRef.current = null;
+      setVoiceError("Voice recognition is not supported in this browser.");
       return;
     }
 
+    cleanupRecognition();
     const recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
+    recognitionRef.current = recognition;
     recognition.continuous = false;
-    recognition.interimResults = true;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
     recognition.maxAlternatives = 1;
 
-    recognition.onresult = (event: any) => {
-      const latest = event?.results?.[event.resultIndex];
-      const transcript = String(latest?.[0]?.transcript ?? "").trim();
-      if (transcript) {
-        setVoiceTranscript(transcript);
-        setVoiceStatus("Voice captured. Processing symptoms...");
+    recognition.onresult = (event) => {
+      const transcript = String(event.results?.[0]?.[0]?.transcript ?? "").trim();
+      if (!transcript) {
+        setVoiceError("No voice captured. Please retry.");
+        return;
       }
+      setVoiceTranscript(transcript);
+      setVoiceStatus(`Captured: "${transcript}"`);
+      void extractSymptomsFromText(transcript);
     };
 
-    recognition.onerror = (event: any) => {
-      const errorType = String(event?.error ?? "");
-      if (errorType === "not-allowed" || errorType === "service-not-allowed") {
-        setVoiceError("Mic permission blocked. Allow microphone access for localhost.");
-      } else if (errorType === "no-speech") {
-        setVoiceError("No speech detected. Speak clearly and retry.");
-      } else if (errorType === "audio-capture") {
-        setVoiceError("No microphone found. Check your device.");
-      } else {
-        setVoiceError("Voice recognition failed. Please retry.");
-      }
+    recognition.onerror = (event) => {
+      setVoiceError(`Voice recognition failed (${event.error || "unknown"}).`);
       setIsListening(false);
-      setVoiceStatus("");
+      cleanupRecognition();
     };
 
-    recognition.onend = async () => {
-      if (voiceTimeoutRef.current) {
-        window.clearTimeout(voiceTimeoutRef.current);
-        voiceTimeoutRef.current = null;
-      }
+    recognition.onend = () => {
       setIsListening(false);
-      const transcript = voiceTranscript.trim();
-      if (!transcript) return;
-
-      setLoading(true);
-      try {
-        const { response, data } = await postJsonWithFallback<SymptomApiResponse>(
-          "http://127.0.0.1:8000/api/extract",
-          "http://127.0.0.1:8000/api/extract-symptoms",
-          { text: transcript }
-        );
-        if (!response.ok) {
-          throw new Error("Symptom extraction failed.");
-        }
-
-        const extractedSymptoms = (data?.symptoms ?? []).filter(Boolean);
-        if (extractedSymptoms.length === 0) {
-          setVoiceError("Voice was captured, but no known symptoms were extracted.");
-          return;
-        }
-        setSymptoms(extractedSymptoms);
-        setStep(2);
-      } catch {
-        setVoiceError("Could not extract symptoms from voice input.");
-      } finally {
-        setLoading(false);
-        setVoiceStatus("");
-      }
+      cleanupRecognition();
     };
-    recognitionRef.current = recognition;
-
-    return () => {
-      try {
-        recognition.stop();
-      } catch {
-        // no-op
-      }
-    };
-  }, [voiceTranscript]);
-
-  const startVoiceInput = async () => {
-    setVoiceError("");
-    setVoiceStatus("");
-    setVoiceTranscript("");
-    const recognition = recognitionRef.current;
-    if (!recognition) {
-      setVoiceError("Voice input is not supported in this browser.");
-      return;
-    }
-
-    try {
-      if (navigator.mediaDevices?.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-      }
-    } catch {
-      setVoiceError("Microphone permission denied.");
-      return;
-    }
 
     try {
       recognition.start();
-    } catch {
-      setVoiceError("Voice recognition could not start. Retry in a second.");
+    } catch (err) {
+      setVoiceError(err instanceof Error ? err.message : "Could not start microphone.");
       return;
     }
+
     setIsListening(true);
-    setVoiceStatus("Listening...");
-    voiceTimeoutRef.current = window.setTimeout(() => {
+  };
+
+  const stopVoiceInput = () => {
+    if (!isListening) return;
+    setIsListening(false);
+    setVoiceStatus("Stopping...");
+    const recognition = recognitionRef.current;
+    if (recognition) {
       try {
         recognition.stop();
       } catch {
         // no-op
       }
-    }, 8000);
-  };
-
-  const stopVoiceInput = () => {
-    const recognition = recognitionRef.current;
-    if (!recognition) return;
-    try {
-      recognition.stop();
-    } catch {
-      // no-op
     }
-    setIsListening(false);
-    setVoiceStatus("");
   };
 
   const onManualSubmit = (submittedSymptoms: string[]) => {
@@ -404,7 +396,7 @@ export function EmergencyFlow() {
                     disabled={loading || isListening}
                   >
                     <Mic className="size-4" />
-                    {isListening ? "Listening..." : "Start Voice Input"}
+                    {isListening ? "Listening..." : "Speak Now"}
                   </button>
                   <button
                     className="inline-flex items-center gap-2 rounded-lg bg-gray-700 px-4 py-2 text-sm text-white"

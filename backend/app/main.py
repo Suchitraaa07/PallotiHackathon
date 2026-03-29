@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app.routes import flashcards
 from app.routes import nlp
 from app.routes import riskcheck as report
+from app.routes import stt
 from app.routes import vision
 
 try:
@@ -32,6 +33,7 @@ app.include_router(nlp.router, prefix="/api")
 app.include_router(report.router, prefix="/api")
 app.include_router(vision.router, prefix="/api")
 app.include_router(flashcards.router, prefix="/api")
+app.include_router(stt.router, prefix="/api")
 
 project_root = Path(__file__).resolve().parents[2]
 images_dir = project_root / "images"

@@ -1,5 +1,16 @@
-import { useEffect, useState } from "react";
-import { Database, Mic, RefreshCw, Search, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Database, Mic, MicOff, RefreshCw, Search, X } from "lucide-react";
+
+type SpeechRecognitionCtor = new () => {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
 
 type Flashcard = {
   id: string;
@@ -30,32 +41,12 @@ type SpeciesAdvice = {
 
 const API_BASE = "http://127.0.0.1:8000";
 const PAGE_SIZE = 24;
-const VOICE_TIMEOUT_MS = 9000;
 
 function buildLocalImageUrl(imagePath?: string) {
   if (!imagePath) {
     return "";
   }
   return `${API_BASE}/${encodeURI(imagePath.replace(/\\/g, "/").replace(/^\/+/, ""))}`;
-}
-
-function toVoiceErrorMessage(errorType: string) {
-  if (errorType === "not-allowed" || errorType === "service-not-allowed") {
-    return "Microphone access was blocked. Allow mic permission for localhost and retry.";
-  }
-  if (errorType === "no-speech") {
-    return "No speech detected. Speak clearly and try again.";
-  }
-  if (errorType === "audio-capture") {
-    return "No microphone was found. Check your mic device and retry.";
-  }
-  if (errorType === "network") {
-    return "Voice recognition network error. Check internet and retry.";
-  }
-  if (errorType === "aborted") {
-    return "Voice capture was interrupted. Please retry.";
-  }
-  return "Voice recognition failed. Type the query or retry voice input.";
 }
 
 export function SnakeFlashcards() {
@@ -67,6 +58,7 @@ export function SnakeFlashcards() {
   const [warning, setWarning] = useState("");
   const [voiceStatus, setVoiceStatus] = useState("");
   const [listening, setListening] = useState(false);
+  const [preparingMic, setPreparingMic] = useState(false);
   const [mode, setMode] = useState<"browse" | "similar">("browse");
   const [sourceFile, setSourceFile] = useState("");
   const [total, setTotal] = useState(0);
@@ -74,6 +66,7 @@ export function SnakeFlashcards() {
   const [advice, setAdvice] = useState<SpeciesAdvice | null>(null);
   const [adviceLoading, setAdviceLoading] = useState(false);
   const [adviceError, setAdviceError] = useState("");
+  const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
 
   const loadSpeciesAdvice = async (card: Flashcard) => {
     setSelectedCard(card);
@@ -176,46 +169,43 @@ export function SnakeFlashcards() {
     }
   };
 
+  const cleanupRecognition = () => {
+    const current = recognitionRef.current;
+    if (current) {
+      current.onresult = null;
+      current.onerror = null;
+      current.onend = null;
+      recognitionRef.current = null;
+    }
+  };
+
   const startVoiceSearch = async () => {
-    const SpeechRecognitionConstructor =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setVoiceStatus("Listening...");
+    setPreparingMic(true);
 
-    if (!SpeechRecognitionConstructor) {
-      setVoiceStatus("Voice input is not supported in this browser.");
+    const SpeechRecognition =
+      (window as Window & { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor })
+        .SpeechRecognition ||
+      (window as Window & { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor })
+        .webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setVoiceStatus("Voice recognition is not supported in this browser.");
+      setPreparingMic(false);
       return;
     }
 
-    try {
-      if (navigator.mediaDevices?.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-      }
-    } catch {
-      setVoiceStatus(
-        "Microphone permission denied. Allow mic access in browser settings for localhost."
-      );
-      return;
-    }
-
-    const recognition = new SpeechRecognitionConstructor();
+    cleanupRecognition();
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
     recognition.lang = "en-US";
-    recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
-    setListening(true);
-    setVoiceStatus("Listening...");
-    let hasResult = false;
-    let hasError = false;
-    const timeoutId = window.setTimeout(() => {
-      recognition.stop();
-    }, VOICE_TIMEOUT_MS);
-
-    recognition.onresult = async (event: any) => {
-      hasResult = true;
-      const transcript = String(event?.results?.[0]?.[0]?.transcript ?? "").trim();
+    recognition.onresult = async (event) => {
+      const transcript = String(event.results?.[0]?.[0]?.transcript ?? "").trim();
       if (!transcript) {
-        setVoiceStatus("Could not capture speech. Please try again.");
+        setVoiceStatus("No voice captured. Please try again.");
         return;
       }
       setSearchValue(transcript);
@@ -223,30 +213,57 @@ export function SnakeFlashcards() {
       await loadSimilarCards(transcript);
     };
 
-    recognition.onerror = (event: any) => {
-      hasError = true;
-      setVoiceStatus(toVoiceErrorMessage(String(event?.error ?? "")));
-    };
-
-    recognition.onnomatch = () => {
-      hasError = true;
-      setVoiceStatus("Could not understand speech. Try again with simpler words.");
+    recognition.onerror = (event) => {
+      setVoiceStatus(`Voice recognition failed (${event.error}).`);
+      setListening(false);
+      cleanupRecognition();
     };
 
     recognition.onend = () => {
-      window.clearTimeout(timeoutId);
-      if (!hasResult && !hasError) {
-        setVoiceStatus("No speech captured. Click Speak Query and try again.");
-      }
       setListening(false);
+      setPreparingMic(false);
+      if (!voiceStatus) {
+        setVoiceStatus("Voice recognition ended.");
+      }
+      cleanupRecognition();
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (err) {
+      setVoiceStatus(
+        err instanceof Error ? err.message : "Could not start voice recognition."
+      );
+      setListening(false);
+      setPreparingMic(false);
+      cleanupRecognition();
+      return;
+    }
+
+    setListening(true);
+    setPreparingMic(false);
+  };
+
+  const stopVoiceSearch = async () => {
+    const recognition = recognitionRef.current;
+    if (!recognition) return;
+    setVoiceStatus("Stopping...");
+    try {
+      recognition.stop();
+    } catch {
+      // ignore stop race condition
+    }
   };
 
   useEffect(() => {
     loadCards();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      cleanupRecognition();
+    };
   }, []);
 
   return (
@@ -313,12 +330,12 @@ export function SnakeFlashcards() {
 
             <button
               type="button"
-              onClick={startVoiceSearch}
-              disabled={listening}
+              onClick={listening ? stopVoiceSearch : startVoiceSearch}
+              disabled={preparingMic}
               className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#7a4f43] bg-[#f3e3dc] px-4 text-sm font-semibold text-[#5f2e2e] transition hover:bg-[#ead3ca] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <Mic className="size-4" />
-              {listening ? "Listening..." : "Speak Query"}
+              {listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+              {preparingMic ? "Starting..." : listening ? "Stop Listening" : "Speak Query"}
             </button>
           </div>
 

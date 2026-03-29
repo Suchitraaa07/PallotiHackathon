@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Mic, MicOff, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -13,13 +13,46 @@ const symptomsList = [
   "Weakness/Fatigue",
 ];
 
-export function RiskCheck() {
+type RiskCheckProps = {
+  onSubmit?: (symptoms: string[]) => void;
+};
+
+export function RiskCheck({ onSubmit }: RiskCheckProps) {
   const navigate = useNavigate();
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const recognitionRef = useRef<any>(null);
 
-  let recognition: any = null;
+  const extractSymptoms = async (text: string) => {
+    const endpoints = [
+      "http://127.0.0.1:8000/api/extract-symptoms",
+      "http://127.0.0.1:8000/api/extract",
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ text }),
+        });
+
+        if (!res.ok) {
+          continue;
+        }
+
+        const data = await res.json();
+        return Array.isArray(data?.symptoms) ? data.symptoms : [];
+      } catch {
+        continue;
+      }
+    }
+
+    throw new Error("Unable to extract symptoms from voice input.");
+  };
 
   useEffect(() => {
     const SpeechRecognition =
@@ -27,45 +60,40 @@ export function RiskCheck() {
       (window as any).webkitSpeechRecognition;
 
     if (SpeechRecognition) {
-      recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.lang = "en-US";
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.lang = "en-US";
 
-      recognition.onresult = async (event: any) => {
-  const text = event.results[0][0].transcript;
-  setTranscript(text);
+      recognitionRef.current.onresult = async (event: any) => {
+        const text = event.results[0][0].transcript;
+        setTranscript(text);
 
-  try {
-    const res = await fetch("http://127.0.0.1:8000/api/extract", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text }),
-    });
+        try {
+          const symptoms = await extractSymptoms(text);
+          setSelectedSymptoms((prev) =>
+            Array.from(new Set([...prev, ...symptoms]))
+          );
+        } catch (err) {
+          console.error("NLP error:", err);
+        }
+      };
 
-    const data = await res.json();
-
-    setSelectedSymptoms((prev) =>
-      Array.from(new Set([...prev, ...data.symptoms]))
-    );
-  } catch (err) {
-    console.error("NLP error:", err);
-  }
-};
-
-recognition.onend = () => setIsListening(false);
+      recognitionRef.current.onend = () => setIsListening(false);
     }
+
+    return () => {
+      recognitionRef.current?.abort?.();
+    };
   }, []);
 
   const toggleListening = () => {
-    if (!recognition) return;
+    if (!recognitionRef.current) return;
 
     if (isListening) {
-      recognition.stop();
+      recognitionRef.current.stop();
       setIsListening(false);
     } else {
-      recognition.start();
+      recognitionRef.current.start();
       setIsListening(true);
     }
   };
@@ -78,24 +106,32 @@ recognition.onend = () => setIsListening(false);
     );
   };
 
-const handleCheckRisk = async () => {
-  try {
-    const res = await fetch("http://127.0.0.1:8000/api/severity", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ symptoms: selectedSymptoms }),
-    });
+  const handleCheckRisk = async () => {
+    if (selectedSymptoms.length === 0) {
+      return;
+    }
 
-    const data = await res.json();
+    if (onSubmit) {
+      onSubmit(selectedSymptoms);
+      return;
+    }
 
-    navigate("/result", { state: data });
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/severity", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ symptoms: selectedSymptoms }),
+      });
 
-  } catch (err) {
-    console.error(err);
-  }
-};
+      const data = await res.json();
+
+      navigate("/result", { state: data });
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <main className="max-w-5xl mx-auto px-6 py-8 bg-[#f6f3ee] min-h-screen">
@@ -169,10 +205,11 @@ const handleCheckRisk = async () => {
       {/* BUTTON */}
       <button
         onClick={handleCheckRisk}
+        disabled={selectedSymptoms.length === 0}
         className="w-full mt-6 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl flex items-center justify-center gap-2"
       >
         <AlertTriangle size={16} />
-        Check Severity
+        {onSubmit ? "Continue" : "Check Severity"}
       </button>
     </main>
   );

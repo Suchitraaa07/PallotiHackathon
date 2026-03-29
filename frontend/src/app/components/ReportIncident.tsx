@@ -12,7 +12,15 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
-export function ReportIncident() {
+type ReportIncidentProps = {
+  initialSymptoms?: string[];
+  initialRiskLevel?: string;
+};
+
+export function ReportIncident({
+  initialSymptoms = [],
+  initialRiskLevel = "",
+}: ReportIncidentProps) {
   const autoFieldNames = new Set([
     "location",
     "latitude",
@@ -84,6 +92,35 @@ export function ReportIncident() {
       season: prev.season || getSeason(new Date(incidentDate).getMonth() + 1),
     }));
   }, []);
+
+  useEffect(() => {
+    if (!initialSymptoms.length && !initialRiskLevel) {
+      return;
+    }
+
+    setFormData((prev) => {
+      const prefillLines = [
+        initialRiskLevel ? `Risk level: ${initialRiskLevel}` : "",
+        initialSymptoms.length
+          ? `Symptoms: ${initialSymptoms.join(", ")}`
+          : "",
+      ].filter(Boolean);
+
+      if (prefillLines.length === 0) {
+        return prev;
+      }
+
+      const prefillText = prefillLines.join("\n");
+      const alreadyIncluded = prev.additionalNotes.includes(prefillText);
+
+      return {
+        ...prev,
+        additionalNotes: alreadyIncluded
+          ? prev.additionalNotes
+          : [prefillText, prev.additionalNotes].filter(Boolean).join("\n\n"),
+      };
+    });
+  }, [initialRiskLevel, initialSymptoms]);
 
   useEffect(() => {
     if (!formData.incidentDate) {

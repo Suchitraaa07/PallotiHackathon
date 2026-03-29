@@ -9,6 +9,7 @@ import { ReportIncident } from "./components/ReportIncident";
 import { RiskCheck } from "./components/RiskCheck";
 import { Result } from "./components/Result";
 import { EmergencyContact } from "./components/EmergencyContact";
+import { EmergencyFlow } from "./components/EmergencyFlow";
 import { LoginPage } from "./components/auth/LoginPage";
 import { SignupPage } from "./components/auth/SignupPage";
 import { WaitingApprovalPage } from "./components/auth/WaitingApprovalPage";
@@ -46,7 +47,7 @@ export const router = createBrowserRouter([
       { path: "contacts", Component: EmergencyContact },
       { path: "hospitals", Component: Hospitals },
       { path: "result", Component: Result },
-      { path: "emergency", Component: EmergencyContact },
+      { path: "emergency", Component: EmergencyFlow },
     ],
   },
 ]);

@@ -29,7 +29,11 @@ type Hospital = {
   is_antivenom_candidate: boolean;
 };
 
-export function ImageAnalyzer() {
+type ImageAnalyzerProps = {
+  onResult?: (prediction: AnalysisResult) => void;
+};
+
+export function ImageAnalyzer({ onResult }: ImageAnalyzerProps) {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [isAnalyzed, setIsAnalyzed] = useState(false);
@@ -182,6 +186,7 @@ export function ImageAnalyzer() {
       setAnalysis(data);
       setSelectedRisk(data.risk_level.toLowerCase());
       setIsAnalyzed(true);
+      onResult?.(data);
       if (data.species === "Not a snake") {
         setNotice("The detector rejected this image before snake classification.");
       } else if (data.species === "Unclear snake image") {

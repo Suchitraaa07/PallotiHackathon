@@ -4,11 +4,11 @@ import {
   Activity,
   AlertTriangle,
   FileText,
-  HeartPulse,
   Home as HomeIcon,
   Leaf,
   MapPin,
   Menu,
+  Phone,
   ScanLine,
   Shield,
   X,
@@ -20,7 +20,7 @@ const navItems = [
   { to: "/map", label: "Map", icon: MapPin },
   { to: "/report", label: "Report Incident", icon: FileText },
   { to: "/risk-check", label: "Risk Check", icon: Shield },
-  { to: "/first-aid", label: "First Aid", icon: HeartPulse },
+  { to: "/contacts", label: "Emergency Contacts", icon: Phone },
 ];
 
 export function Layout() {

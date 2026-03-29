@@ -5,7 +5,8 @@ import {
   TrendingUp,
   MapPin,
   Heart,
-  AlertTriangle
+  AlertTriangle,
+  Zap
 } from 'lucide-react';
 
 export function QuickActions() {
@@ -67,6 +68,36 @@ export function QuickActions() {
           <p className="text-lg text-emerald-100 max-w-2xl mx-auto">
             Quick access to emergency information and guidance tailored to your situation
           </p>
+        </div>
+
+        {/* Emergency Response Button - Prominent */}
+        <div className="mb-12">
+          <Link
+            to="/emergency"
+            className="block"
+          >
+            <div className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-2xl p-8 text-white text-center shadow-2xl transform hover:scale-105 transition-all duration-300 cursor-pointer relative overflow-hidden"
+            >
+              {/* Animated background */}
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute inset-0 bg-white animate-pulse"></div>
+              </div>
+              
+              <div className="relative">
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  <Zap size={32} className="animate-bounce" />
+                  <h3 className="text-3xl md:text-4xl font-black">EMERGENCY RESPONSE</h3>
+                  <Zap size={32} className="animate-bounce" />
+                </div>
+                <p className="text-lg text-red-100 mb-4">
+                  Step-by-step guidance for snakebite incidents
+                </p>
+                <button className="px-8 py-3 bg-white text-red-700 font-bold rounded-full hover:bg-red-50 transition-all transform hover:scale-110">
+                  Start Emergency Flow →
+                </button>
+              </div>
+            </div>
+          </Link>
         </div>
 
         {/* Action Cards Grid */}

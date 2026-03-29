@@ -1,17 +1,19 @@
-import { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { 
-  MapPin, 
-  ScanLine, 
-  FileText, 
-  Shield, 
+import { useState } from "react";
+import { Link, Outlet, useLocation } from "react-router-dom";
+import {
   Activity,
-  Leaf,
   AlertTriangle,
+  FileText,
+  HeartPulse,
   Home as HomeIcon,
+  Leaf,
+  MapPin,
   Menu,
-  X
-} from 'lucide-react';
+  Phone,
+  ScanLine,
+  Shield,
+  X,
+} from "lucide-react";
 
 const navItems = [
   { to: "/", label: "Home", icon: HomeIcon },
@@ -19,6 +21,8 @@ const navItems = [
   { to: "/map", label: "Map", icon: MapPin },
   { to: "/report", label: "Report Incident", icon: FileText },
   { to: "/risk-check", label: "Risk Check", icon: Shield },
+  { to: "/first-aid", label: "First Aid", icon: HeartPulse },
+  { to: "/contacts", label: "Emergency Contacts", icon: Phone },
 ];
 
 export function Layout() {
@@ -26,10 +30,10 @@ export function Layout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex flex-col" style={{
-      background: 'linear-gradient(to bottom, #f8f9f5 0%, #e8f0e5 100%)'
-    }}>
-      {/* Navigation Bar */}
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ background: "linear-gradient(to bottom, #f8f9f5 0%, #e8f0e5 100%)" }}
+    >
       <nav className="sticky top-0 z-50 border-b border-[#4a1f1f] bg-gradient-to-r from-[#5c2222] via-[#4a1c1c] to-[#341414] shadow-lg backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between gap-3">
@@ -46,7 +50,7 @@ export function Layout() {
                 </p>
               </div>
             </Link>
-            
+
             <div className="hidden lg:flex items-center gap-8">
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -58,8 +62,8 @@ export function Layout() {
                     to={item.to}
                     className={`flex items-center gap-2 transition-colors ${
                       isActive
-                        ? 'text-[#f7d8c8]'
-                        : 'text-[#ead7d0] hover:text-[#f7d8c8]'
+                        ? "text-[#f7d8c8]"
+                        : "text-[#ead7d0] hover:text-[#f7d8c8]"
                     }`}
                   >
                     <Icon className="size-4" />
@@ -67,13 +71,18 @@ export function Layout() {
                   </Link>
                 );
               })}
+
+              <Link
+                to="/login"
+                className="rounded-full border border-[#d9e5d7]/40 bg-[#2f6b45]/35 px-4 py-2 text-sm font-medium text-[#f3e5df] transition hover:bg-[#2f6b45]/50"
+              >
+                Login / Signup
+              </Link>
             </div>
 
-            <div className="flex flex-shrink-0 items-center gap-2 sm:gap-3">
-              <div className="hidden md:flex items-center gap-2 rounded-full border border-[#9fc5a8]/25 bg-white/10 px-4 py-2">
-                <Activity className="size-4 text-[#9fc5a8] animate-pulse" />
-                <span className="text-sm text-[#f3e5df]">System Active</span>
-              </div>
+            <div className="hidden md:flex items-center gap-2 rounded-full border border-[#9fc5a8]/30 bg-[#2f6b45]/25 px-4 py-2">
+              <Activity className="size-4 text-[#9fc5a8] animate-pulse" />
+              <span className="text-sm text-[#f3e5df]">System Active</span>
             </div>
           </div>
         </div>
@@ -81,7 +90,7 @@ export function Layout() {
 
       <button
         type="button"
-        className="fixed right-4 top-4 z-[80] inline-flex items-center justify-center rounded-2xl border-2 border-[#d4a190] bg-[#fff1ea] p-3 text-[#6b2d2d] shadow-xl transition hover:bg-[#f6ddd3]"
+        className="fixed right-4 top-4 z-[80] inline-flex lg:hidden items-center justify-center rounded-2xl border-2 border-[#d4a190] bg-[#fff1ea] p-3 text-[#6b2d2d] shadow-xl transition hover:bg-[#f6ddd3]"
         aria-label="Toggle navigation menu"
         onClick={() => setIsMobileMenuOpen((open) => !open)}
       >
@@ -123,15 +132,25 @@ export function Layout() {
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm font-medium shadow-sm transition ${
                       isActive
-                        ? 'border-[#caa38f] bg-gradient-to-r from-[#f2dfd4] to-[#d9e5d7] text-[#2f6b45]'
-                        : 'border-[#8d5a52]/30 bg-[#f7ece8] text-[#5a2d2d] hover:border-[#b77a6e]/50 hover:bg-[#f2dfd8]'
+                        ? "border-[#caa38f] bg-gradient-to-r from-[#f2dfd4] to-[#d9e5d7] text-[#2f6b45]"
+                        : "border-[#8d5a52]/30 bg-[#f7ece8] text-[#5a2d2d] hover:border-[#b77a6e]/50 hover:bg-[#f2dfd8]"
                     }`}
                   >
-                    <Icon className={`size-4 ${isActive ? 'text-[#2f6b45]' : 'text-[#7a3a32]'}`} />
+                    <Icon
+                      className={`size-4 ${isActive ? "text-[#2f6b45]" : "text-[#7a3a32]"}`}
+                    />
                     <span>{item.label}</span>
                   </Link>
                 );
               })}
+
+              <Link
+                to="/login"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center justify-center rounded-2xl border border-[#2f6b45]/30 bg-[#e4efdf] px-4 py-3.5 text-sm font-semibold text-[#2f6b45] shadow-sm transition hover:bg-[#d6e8cf]"
+              >
+                Login / Signup
+              </Link>
 
               <div className="mt-auto flex items-center gap-2 rounded-2xl border border-[#2f6b45]/25 bg-gradient-to-r from-[#e8efe4] to-[#dce8da] px-4 py-3.5 text-sm text-[#2f6b45] shadow-sm">
                 <Activity className="size-4 animate-pulse text-[#2f6b45]" />
@@ -142,7 +161,6 @@ export function Layout() {
         </>
       )}
 
-      {/* Emergency Alert Banner */}
       <div className="bg-gradient-to-r from-[#8f2323] to-[#6a1717] text-[#fff3ed] py-3 px-6 shadow-md">
         <div className="max-w-7xl mx-auto flex items-center justify-center gap-3 flex-wrap">
           <AlertTriangle className="size-5" />
@@ -154,10 +172,8 @@ export function Layout() {
         </div>
       </div>
 
-      {/* Main Content */}
       <Outlet />
 
-      {/* Footer */}
       <footer className="bg-white/60 backdrop-blur-sm border-t border-green-100/50 py-6 mt-8">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -166,16 +182,23 @@ export function Layout() {
               <span className="text-sm">Protecting lives from wildlife emergencies</span>
             </div>
             <div className="flex items-center gap-6 text-sm text-gray-500">
-              <a href="#" className="hover:text-green-600 transition-colors">About</a>
-              <a href="#" className="hover:text-green-600 transition-colors">Privacy</a>
-              <a href="#" className="hover:text-green-600 transition-colors">Terms</a>
-              <a href="#" className="hover:text-green-600 transition-colors">Contact</a>
+              <a href="#" className="hover:text-green-600 transition-colors">
+                About
+              </a>
+              <a href="#" className="hover:text-green-600 transition-colors">
+                Privacy
+              </a>
+              <a href="#" className="hover:text-green-600 transition-colors">
+                Terms
+              </a>
+              <a href="#" className="hover:text-green-600 transition-colors">
+                Contact
+              </a>
             </div>
           </div>
         </div>
       </footer>
 
-      {/* Decorative Background Elements */}
       <div className="fixed bottom-0 left-0 right-0 pointer-events-none z-0 opacity-20">
         <svg viewBox="0 0 1440 120" className="w-full h-auto">
           <path

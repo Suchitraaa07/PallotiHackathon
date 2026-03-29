@@ -382,12 +382,14 @@ export function MapSection() {
           }));
 
         setReports(validReports);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Fetch error:", error);
         setReports([]);
         setHotspots([]);
         setPredictionPoints([]);
-        setHeatmapError(error?.message || "Failed to load hotspot data");
+        setHeatmapError(
+          error instanceof Error ? error.message : "Failed to load hotspot data"
+        );
       } finally {
         setLoading(false);
       }

@@ -1,8 +1,17 @@
 import { useLocation } from "react-router-dom";
 
-export function Result() {
+type ResultProps = {
+  riskLevel?: string;
+  symptoms?: string[];
+  explanation?: string;
+};
+
+export function Result({ riskLevel, symptoms, explanation }: ResultProps = {}) {
   const location = useLocation();
-  const { severity, selected_symptoms } = location.state || {};
+  const { severity, selected_symptoms, explanation: stateExplanation } = location.state || {};
+  const resolvedSeverity = riskLevel ?? severity;
+  const resolvedSymptoms = symptoms ?? selected_symptoms ?? [];
+  const resolvedExplanation = explanation ?? stateExplanation ?? "";
 
   return (
     <main className="max-w-3xl mx-auto p-6">
@@ -10,13 +19,16 @@ export function Result() {
 
       <div className="bg-white shadow rounded-xl p-6">
         <p className="text-lg mb-2">
-          Severity: <span className="font-bold">{severity}</span>
+          Severity: <span className="font-bold">{resolvedSeverity}</span>
         </p>
+        {resolvedExplanation ? (
+          <p className="text-sm text-gray-700 mb-3">{resolvedExplanation}</p>
+        ) : null}
 
         <p className="text-sm text-gray-500 mb-3">Symptoms detected:</p>
 
         <ul className="list-disc ml-5">
-          {selected_symptoms?.map((s: string) => (
+          {resolvedSymptoms?.map((s: string) => (
             <li key={s}>{s}</li>
           ))}
         </ul>

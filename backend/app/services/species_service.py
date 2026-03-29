@@ -12,12 +12,16 @@ from torchvision import transforms
 from torchvision.models import efficientnet_b0
 
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "species_model.pt"
-DETECTOR_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "snake_detector.pt"
+DETECTOR_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "snake_model.pt"
 DEFAULT_LABELS = ["Venomous", "Non Venomous"]
 DETECTOR_LABELS = ["Not Snake", "Snake"]
 IMAGE_SIZE = 224
-SNAKE_DETECTION_THRESHOLD = 0.7
-SPECIES_CONFIDENCE_THRESHOLD = 65.0
+SNAKE_DETECTION_THRESHOLD = float(os.getenv("SNAKE_DETECTION_THRESHOLD", "0.35"))
+SPECIES_CONFIDENCE_THRESHOLD = float(
+    os.getenv("SPECIES_CONFIDENCE_THRESHOLD", "50.0")
+)
+SPECIES_MARGIN_THRESHOLD = float(os.getenv("SPECIES_MARGIN_THRESHOLD", "10.0"))
+SPECIES_MAX_ENTROPY = float(os.getenv("SPECIES_MAX_ENTROPY", "0.97"))
 
 
 def _load_species_labels() -> list[str]:
@@ -76,6 +80,19 @@ def _run_classifier(
         probabilities = torch.softmax(logits, dim=1)[0]
         predicted_index = int(torch.argmax(probabilities).item())
         confidence = float(probabilities[predicted_index].item())
+        top_k = min(2, probabilities.shape[0])
+        top_values, top_indices = torch.topk(probabilities, k=top_k)
+        second_confidence = (
+            float(top_values[1].item())
+            if top_k > 1
+            else 0.0
+        )
+        margin = confidence - second_confidence
+        entropy = float(
+            (-probabilities * torch.log(probabilities.clamp_min(1e-12))).sum().item()
+        )
+        max_entropy = float(np.log(max(probabilities.shape[0], 2)))
+        normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0.0
 
     label = (
         labels[predicted_index]
@@ -86,6 +103,10 @@ def _run_classifier(
         "label": label,
         "confidence": confidence,
         "class_index": predicted_index,
+        "second_class_index": int(top_indices[1].item()) if top_k > 1 else -1,
+        "second_confidence": second_confidence,
+        "margin": margin,
+        "normalized_entropy": normalized_entropy,
     }
 
 
@@ -102,10 +123,15 @@ def load_snake_detector_model():
     if not DETECTOR_MODEL_PATH.exists():
         return None
 
-    model = _build_classifier(len(SNAKE_DETECTOR_LABELS))
-    state_dict = torch.load(DETECTOR_MODEL_PATH, map_location="cpu")
-    model.load_state_dict(state_dict)
-    return model
+    try:
+        model = _build_classifier(len(SNAKE_DETECTOR_LABELS))
+        state_dict = torch.load(DETECTOR_MODEL_PATH, map_location="cpu")
+        model.load_state_dict(state_dict)
+        return model
+    except Exception:
+        # If the detector checkpoint format is incompatible (e.g., YOLO/Ultralytics),
+        # fallback logic in detect_snake() will be used instead of crashing API.
+        return None
 
 
 def _heuristic_snake_gate(image: Image.Image) -> float:
@@ -142,6 +168,39 @@ def _heuristic_snake_gate(image: Image.Image) -> float:
     )
 
 
+def _looks_like_ui_or_document(image: Image.Image) -> bool:
+    rgb = image.resize((IMAGE_SIZE, IMAGE_SIZE)).convert("RGB")
+    pixels = np.asarray(rgb, dtype=np.float32) / 255.0
+    grayscale = (
+        0.299 * pixels[:, :, 0] + 0.587 * pixels[:, :, 1] + 0.114 * pixels[:, :, 2]
+    )
+
+    gradient_x = np.diff(grayscale, axis=1, prepend=grayscale[:, :1])
+    gradient_y = np.diff(grayscale, axis=0, prepend=grayscale[:1, :])
+    gradient_magnitude = np.sqrt(gradient_x**2 + gradient_y**2)
+
+    strong_threshold = float(np.percentile(gradient_magnitude, 92))
+    strong_edges = gradient_magnitude >= strong_threshold
+    strong_count = int(strong_edges.sum())
+    if strong_count < 500:
+        return False
+
+    gx = np.abs(gradient_x[strong_edges])
+    gy = np.abs(gradient_y[strong_edges])
+    # UI/document captures usually have mostly horizontal/vertical edges.
+    axis_aligned_ratio = float((np.maximum(gx, gy) >= (np.minimum(gx, gy) * 2.5)).mean())
+    edge_coverage = strong_count / float(IMAGE_SIZE * IMAGE_SIZE)
+
+    color_std = float(np.std(pixels))
+    gray_std = float(np.std(grayscale))
+
+    return (
+        axis_aligned_ratio >= 0.84
+        and edge_coverage >= 0.02
+        and (gray_std <= 0.28 or color_std <= 0.25)
+    )
+
+
 def detect_snake(image_bytes: bytes) -> dict[str, float | str | bool]:
     image = _open_image(image_bytes)
     tensor = _prepare_tensor(image)
@@ -157,6 +216,14 @@ def detect_snake(image_bytes: bytes) -> dict[str, float | str | bool]:
             "confidence": round(confidence * 100, 2),
             "label": label,
             "source": "model",
+        }
+
+    if _looks_like_ui_or_document(image):
+        return {
+            "is_snake": False,
+            "confidence": 3.0,
+            "label": "Not Snake",
+            "source": "heuristic-ui-reject",
         }
 
     heuristic_confidence = _heuristic_snake_gate(image)
@@ -180,5 +247,7 @@ def predict_species(image_bytes: bytes) -> dict[str, float | str | int]:
         "species": label,
         "confidence": round(confidence * 100, 2),
         "class_index": int(prediction["class_index"]),
+        "margin": round(float(prediction["margin"]) * 100, 2),
+        "entropy": round(float(prediction["normalized_entropy"]), 4),
         "accepted": round(confidence * 100, 2) >= SPECIES_CONFIDENCE_THRESHOLD,
     }

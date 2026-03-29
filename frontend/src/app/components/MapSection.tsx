@@ -334,12 +334,22 @@ export function MapSection() {
 
   useEffect(() => {
     const fetchReportData = async () => {
+      const fetchReportsPayload = async () => {
+        const primaryResponse = await fetch("http://127.0.0.1:8000/api/reports");
+        if (primaryResponse.status !== 404) {
+          return primaryResponse;
+        }
+
+        // Fallback for older backend route mounting.
+        return fetch("http://127.0.0.1:8000/reports");
+      };
+
       try {
         setHeatmapError("");
         setHeatmapWarning("");
         setLoading(true);
 
-        const response = await fetch("http://127.0.0.1:8000/api/reports");
+        const response = await fetchReportsPayload();
         const payload = await response.json();
 
         if (!response.ok) {

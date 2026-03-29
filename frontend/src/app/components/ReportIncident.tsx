@@ -11,7 +11,15 @@ import {
   Send,
 } from "lucide-react";
 
-export function ReportIncident() {
+type ReportIncidentProps = {
+  prefillSymptoms?: string[];
+  prefillRiskLevel?: string;
+};
+
+export function ReportIncident({
+  prefillSymptoms = [],
+  prefillRiskLevel = "",
+}: ReportIncidentProps = {}) {
   const autoFieldNames = new Set([
     "location",
     "latitude",
@@ -83,6 +91,29 @@ export function ReportIncident() {
       season: prev.season || getSeason(new Date(incidentDate).getMonth() + 1),
     }));
   }, []);
+
+  useEffect(() => {
+    if (!prefillSymptoms.length && !prefillRiskLevel) {
+      return;
+    }
+
+    setFormData((prev) => {
+      const existingNotes = prev.additionalNotes?.trim();
+      const prefillText = [
+        prefillRiskLevel ? `Risk Level: ${prefillRiskLevel}` : "",
+        prefillSymptoms.length ? `Symptoms: ${prefillSymptoms.join(", ")}` : "",
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      return {
+        ...prev,
+        additionalNotes: existingNotes
+          ? `${existingNotes}\n${prefillText}`
+          : prefillText,
+      };
+    });
+  }, [prefillRiskLevel, prefillSymptoms]);
 
   useEffect(() => {
     if (!formData.incidentDate) {

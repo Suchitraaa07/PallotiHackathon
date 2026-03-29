@@ -4,6 +4,7 @@ import {
   Stethoscope,
   TrendingUp,
   MapPin,
+  Images,
   Heart,
   AlertTriangle
 } from 'lucide-react';
@@ -40,13 +41,20 @@ export function QuickActions() {
     },
     {
       id: 5,
+      title: 'Snake Flashcards',
+      description: 'View dataset images as review cards for species familiarity',
+      icon: Images,
+      path: '/flashcards'
+    },
+    {
+      id: 6,
       title: 'First Aid Guide',
       description: 'Step-by-step medical guidance while help arrives',
       icon: Heart,
       path: '/first-aid'
     },
     {
-      id: 6,
+      id: 7,
       title: 'Report Incident',
       description: 'Document the incident for medical records',
       icon: AlertTriangle,

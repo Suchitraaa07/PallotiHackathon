@@ -9,6 +9,7 @@ import {
   Leaf,
   AlertTriangle,
   Home as HomeIcon,
+  Images,
   Menu,
   X
 } from 'lucide-react';
@@ -19,6 +20,7 @@ const navItems = [
   { to: "/map", label: "Map", icon: MapPin },
   { to: "/report", label: "Report Incident", icon: FileText },
   { to: "/risk-check", label: "Risk Check", icon: Shield },
+  { to: "/flashcards", label: "Flashcards", icon: Images },
 ];
 
 export function Layout() {

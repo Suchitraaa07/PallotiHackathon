@@ -211,8 +211,14 @@ def get_severity(data: SymptomInput):
     severity = calculate_severity(data.symptoms)
 
     return {
-        "severity": severity,
-        "selected_symptoms": data.symptoms
+        "severity": severity["severity"],
+        "risk_level": severity["risk_level"],
+        "score": severity["score"],
+        "explanation": severity["explanation"],
+        "precautions": severity["precautions"],
+        "matched_symptoms": severity["matched_symptoms"],
+        "unmatched_symptoms": severity["unmatched_symptoms"],
+        "selected_symptoms": data.symptoms,
     }
 
 
